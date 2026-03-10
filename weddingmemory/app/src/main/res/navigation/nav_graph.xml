@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/albumUnlockFragment">
+
+    <!-- =====================================================================
+         Album Unlock — entry screen
+         ===================================================================== -->
+    <fragment
+        android:id="@+id/albumUnlockFragment"
+        android:name="com.weddingmemory.app.ui.unlock.AlbumUnlockFragment"
+        android:label="Unlock Album"
+        tools:layout="@layout/fragment_album_unlock">
+
+        <action
+            android:id="@+id/action_albumUnlockFragment_to_scannerFragment"
+            app:destination="@id/scannerFragment"
+            app:enterAnim="@anim/nav_default_enter_anim"
+            app:exitAnim="@anim/nav_default_exit_anim"
+            app:popUpTo="@id/albumUnlockFragment"
+            app:popUpToInclusive="true" />
+
+    </fragment>
+
+    <!-- =====================================================================
+         Scanner — live camera + recognition
+         ===================================================================== -->
+    <fragment
+        android:id="@+id/scannerFragment"
+        android:name="com.weddingmemory.app.ui.scanner.ScannerFragment"
+        android:label="Scanner"
+        tools:layout="@layout/fragment_scanner">
+
+        <argument
+            android:name="albumId"
+            app:argType="string"
+            android:defaultValue="" />
+
+        <action
+            android:id="@+id/action_scannerFragment_to_playerFragment"
+            app:destination="@id/playerFragment"
+            app:enterAnim="@anim/nav_default_enter_anim"
+            app:exitAnim="@anim/nav_default_exit_anim"
+            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+            app:popExitAnim="@anim/nav_default_pop_exit_anim" />
+
+        <action
+            android:id="@+id/action_scannerFragment_to_albumUnlockFragment"
+            app:destination="@id/albumUnlockFragment"
+            app:popUpTo="@id/scannerFragment"
+            app:popUpToInclusive="true" />
+
+    </fragment>
+
+    <!-- =====================================================================
+         Player — video playback
+         ===================================================================== -->
+    <fragment
+        android:id="@+id/playerFragment"
+        android:name="com.weddingmemory.app.ui.player.PlayerFragment"
+        android:label="Player"
+        tools:layout="@layout/fragment_player">
+
+        <argument
+            android:name="videoUrl"
+            app:argType="string"
+            android:defaultValue="" />
+
+        <argument
+            android:name="startTimestamp"
+            app:argType="long"
+            android:defaultValue="0L" />
+
+        <argument
+            android:name="clipDurationMs"
+            app:argType="long"
+            android:defaultValue="0L" />
+
+    </fragment>
+
+</navigation>

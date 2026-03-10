@@ -1,0 +1,24 @@
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+*.keystore
+*.jks
+
+# Kotlin / Generated
+/app/build/
+/app/schemas/
+
+# Android Studio
+*.xml~
+
+# OS
+Thumbs.db
+*.hprof
+java_pid*.hprof

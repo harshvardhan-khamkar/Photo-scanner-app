@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Base application theme — inherits Material3 DayNight. -->
+    <style name="Theme.WeddingMemory" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Splashscreen icon background and window background will be added in Step 2 -->
+    </style>
+
+</resources>
