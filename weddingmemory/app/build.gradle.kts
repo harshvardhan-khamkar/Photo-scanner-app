@@ -39,11 +39,15 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // Production API URL — change this when you deploy
+            buildConfigField("String", "API_BASE_URL", "\"https://api.yourdomain.com/\"")
         }
         debug {
             isMinifyEnabled = false
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-DEBUG"
+            // Local dev — your PC's hotspot IP
+            buildConfigField("String", "API_BASE_URL", "\"http://192.168.137.1:8000/\"")
         }
     }
 

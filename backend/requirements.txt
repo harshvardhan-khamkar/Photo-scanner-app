@@ -1,11 +1,26 @@
-fastapi
-uvicorn[standard]
-motor
-boto3
-pydantic-settings
-python-multipart
-python-dotenv
-numpy
-Pillow
-tflite-runtime
-boto3
+# Core
+fastapi==0.115.8
+uvicorn[standard]==0.34.0
+gunicorn==23.0.0
+
+# Database
+motor==3.7.0
+
+# Data & Validation
+pydantic-settings==2.7.1
+python-multipart==0.0.20
+python-dotenv==1.0.1
+
+# AWS (for future S3 integration)
+boto3==1.36.24
+
+# ML / Embeddings
+numpy==2.2.3
+Pillow==11.1.0
+tensorflow==2.18.0
+
+# Rate Limiting
+slowapi==0.1.9
+
+# Logging
+coloredlogs==15.0.1

@@ -1,0 +1,13 @@
+venv/
+__pycache__/
+*.pyc
+.env
+storage/videos/*
+storage/photos/*
+!storage/videos/.gitkeep
+!storage/photos/.gitkeep
+*.egg-info/
+.pytest_cache/
+check_*.py
+migrate_*.py
+test_*.py

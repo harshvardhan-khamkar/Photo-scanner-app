@@ -1,6 +1,7 @@
 package com.weddingmemory.app.di
 
 import com.squareup.moshi.Moshi
+import com.weddingmemory.app.BuildConfig
 import com.weddingmemory.app.data.remote.api.AlbumApi
 import dagger.Module
 import dagger.Provides
@@ -16,23 +17,14 @@ import javax.inject.Singleton
 /**
  * NetworkModule — provides Retrofit, OkHttp, and API interfaces.
  *
- * For local development:
- *   - Emulator → uses 10.0.2.2 (Android's alias for host machine localhost)
- *   - Physical device → replace BASE_URL with your PC's local IP (e.g. 192.168.x.x)
+ * The API base URL is read from BuildConfig.API_BASE_URL, which is set
+ * per build type in build.gradle.kts:
+ *   - debug  → http://192.168.137.1:8000/   (local PC hotspot)
+ *   - release → https://api.yourdomain.com/  (production)
  */
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
-
-    /**
-     * Base URL of the FastAPI backend.
-     *
-     * • Android emulator  → http://10.0.2.2:8000/
-     * • Physical device    → http://<your-PC-IP>:8000/
-     *
-     * IMPORTANT: URL must end with a trailing slash for Retrofit.
-     */
-    private const val BASE_URL = "http://192.168.137.1:8000/"
 
     @Provides
     @Singleton
@@ -42,7 +34,12 @@ object NetworkModule {
     @Singleton
     fun provideOkHttpClient(): OkHttpClient {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            // Full body logging in debug, headers only in release
+            level = if (BuildConfig.DEBUG) {
+                HttpLoggingInterceptor.Level.BODY
+            } else {
+                HttpLoggingInterceptor.Level.HEADERS
+            }
         }
 
         return OkHttpClient.Builder()
@@ -57,7 +54,7 @@ object NetworkModule {
     @Singleton
     fun provideRetrofit(okHttpClient: OkHttpClient, moshi: Moshi): Retrofit {
         return Retrofit.Builder()
-            .baseUrl(BASE_URL)
+            .baseUrl(BuildConfig.API_BASE_URL)
             .client(okHttpClient)
             .addConverterFactory(MoshiConverterFactory.create(moshi))
             .build()

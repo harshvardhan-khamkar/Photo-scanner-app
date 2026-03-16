@@ -1,11 +1,11 @@
 """
-Local Storage Service
+Storage Service
 ---------------
-Drop-in replacement for S3 uploads during local development.
-Files are persisted under the project-level ``storage/`` directory
-and served via FastAPI's StaticFiles mount.
+Abstraction layer for file storage. Currently supports local storage only.
+Set ``STORAGE_BACKEND=s3`` in ``.env`` to enable S3 (not yet implemented).
 
-To switch back to S3, simply swap the imports in album_service.py.
+Existing files in ``storage/`` are preserved — this module only handles
+new uploads.
 """
 
 import os
@@ -14,6 +14,7 @@ import subprocess
 import uuid
 import logging
 from fastapi import UploadFile
+from ..config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,10 @@ PHOTOS_DIR = os.path.join(STORAGE_ROOT, "photos")
 # Base URL used to construct public video URLs (fallback)
 BASE_URL = "http://0.0.0.0:8000"
 
+# Ensure directories exist on module load
+os.makedirs(VIDEOS_DIR, exist_ok=True)
+os.makedirs(PHOTOS_DIR, exist_ok=True)
+
 
 def get_base_url(request=None) -> str:
     """Build base URL from the incoming request's Host header when available."""
@@ -32,10 +37,6 @@ def get_base_url(request=None) -> str:
         host = request.headers.get("host", "0.0.0.0:8000")
         return f"http://{host}"
     return BASE_URL
-
-# Ensure directories exist on module load
-os.makedirs(VIDEOS_DIR, exist_ok=True)
-os.makedirs(PHOTOS_DIR, exist_ok=True)
 
 
 def _unique_filename(original_filename: str) -> str:
@@ -78,7 +79,11 @@ def _optimize_video(path: str) -> None:
             os.replace(tmp_path, path)  # atomic replace
             logger.info("Video optimized (faststart) → %s", path)
         else:
-            logger.warning("ffmpeg failed (rc=%d): %s", result.returncode, result.stderr[-500:] if result.stderr else "")
+            logger.warning(
+                "ffmpeg failed (rc=%d): %s",
+                result.returncode,
+                result.stderr[-500:] if result.stderr else "",
+            )
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
     except subprocess.TimeoutExpired:
@@ -91,20 +96,26 @@ def _optimize_video(path: str) -> None:
             os.remove(tmp_path)
 
 
+# ── Public API ────────────────────────────────────────────────────────
+# These functions are the abstraction layer. When STORAGE_BACKEND="s3",
+# swap the implementation here to upload to S3 instead.
+
+
 async def save_video(file: UploadFile) -> str:
     """
-    Save an uploaded video to ``storage/videos/``.
+    Save an uploaded video.
 
-    The video is automatically post-processed with ffmpeg to ensure it is
-    a non-fragmented MP4 with the moov atom at the front (faststart),
-    which is required for ExoPlayer to seek over progressive HTTP.
+    When STORAGE_BACKEND="local":
+      - Saves to ``storage/videos/<uuid>.mp4``
+      - Runs ffmpeg faststart optimization
+      - Returns a local URL
 
-    Returns
-    -------
-    str
-        A public URL of the form
-        ``http://127.0.0.1:8000/storage/videos/<uuid>.<ext>``
+    Returns the public URL of the saved video.
     """
+    if settings.STORAGE_BACKEND == "s3":
+        # TODO: Implement S3 upload when ready
+        raise NotImplementedError("S3 storage backend not yet implemented")
+
     filename = _unique_filename(file.filename)
     dest_path = os.path.join(VIDEOS_DIR, filename)
 
@@ -122,14 +133,18 @@ async def save_video(file: UploadFile) -> str:
 
 async def save_photo(file: UploadFile) -> str:
     """
-    Save an uploaded photo to ``storage/photos/``.
+    Save an uploaded photo.
 
-    Returns
-    -------
-    str
-        The **local filesystem path** to the saved file.
-        This path is consumed directly by the embedding generator.
+    When STORAGE_BACKEND="local":
+      - Saves to ``storage/photos/<uuid>.<ext>``
+      - Returns the local filesystem path
+
+    Returns the path/URL of the saved photo.
     """
+    if settings.STORAGE_BACKEND == "s3":
+        # TODO: Implement S3 upload when ready
+        raise NotImplementedError("S3 storage backend not yet implemented")
+
     filename = _unique_filename(file.filename)
     dest_path = os.path.join(PHOTOS_DIR, filename)
 

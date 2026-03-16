@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wedding Memory — Admin Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Varela+Round&family=Nunito+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="style.css?v=3">
+</head>
+<body>
+
+<!-- ── BACKGROUND ANIMATION ──────────────────────────────────────── -->
+<div class="liquid-bg">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+</div>
+
+<!-- ── LOGIN SCREEN ──────────────────────────────────────────────── -->
+<div id="loginScreen" class="screen active">
+    <div class="login-card glass">
+        <div class="login-logo"><i data-lucide="flower-2"></i></div>
+        <h1>Wedding Memory</h1>
+        <p class="subtitle">Admin Dashboard</p>
+        <div class="form-group">
+            <label for="apiKeyInput">Admin API Key</label>
+            <input type="password" id="apiKeyInput" placeholder="Enter your admin API key…" autocomplete="off">
+        </div>
+        <button id="loginBtn" class="btn btn-primary btn-full" onclick="login()">Sign In</button>
+        <p id="loginError" class="error-text hidden"></p>
+    </div>
+</div>
+
+<!-- ── DASHBOARD ─────────────────────────────────────────────────── -->
+<div id="dashboard" class="screen">
+    <!-- Header -->
+    <header class="header glass">
+        <div class="header-left">
+            <span class="header-logo"><i data-lucide="flower-2"></i></span>
+            <h2>Wedding Memory</h2>
+        </div>
+        <div class="header-right">
+            <button id="themeToggleBtn" class="btn btn-ghost btn-sm" onclick="toggleTheme()" title="Toggle Dark Mode">
+                <i data-lucide="moon" class="icon-sm"></i>
+            </button>
+            <button class="btn btn-outline btn-sm" onclick="refreshAlbums()"><i data-lucide="refresh-cw" class="icon-sm"></i> Refresh</button>
+            <button class="btn btn-primary btn-sm" onclick="showUploadView()"><i data-lucide="plus" class="icon-sm"></i> New Album</button>
+            <button class="btn btn-ghost btn-sm" onclick="logout()"><i data-lucide="log-out" class="icon-sm"></i> Sign Out</button>
+        </div>
+    </header>
+
+    <div id="homeView" class="view active">
+        <!-- Stats Row -->
+        <div class="stats-row">
+            <div class="stat-card glass">
+                <div class="stat-icon"><i data-lucide="layers"></i></div>
+                <div class="stat-content">
+                    <span class="stat-value" id="statAlbums">0</span>
+                    <span class="stat-label">Total Albums</span>
+                </div>
+            </div>
+            <div class="stat-card glass">
+                <div class="stat-icon"><i data-lucide="image"></i></div>
+                <div class="stat-content">
+                    <span class="stat-value" id="statFrames">0</span>
+                    <span class="stat-label">Total Frames</span>
+                </div>
+            </div>
+            <div class="stat-card glass">
+                <div class="stat-icon"><i data-lucide="calendar"></i></div>
+                <div class="stat-content">
+                    <span class="stat-value" id="statLatest">—</span>
+                    <span class="stat-label">Latest Album</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Albums Grid -->
+        <div class="section-header">
+            <h3>Albums</h3>
+        </div>
+        <div id="albumsGrid" class="albums-grid">
+            <!-- dynamically filled -->
+        </div>
+        <div id="emptyState" class="empty-state hidden">
+            <p>No albums yet. Click <strong>+ New Album</strong> to create one.</p>
+        </div>
+    </div>
+
+    <!-- ── UPLOAD VIEW ──────────────────────────────────────────────── -->
+    <div id="uploadView" class="view hidden" style="padding: 0 3rem 3rem;">
+        <div class="section-header" style="padding: 2.5rem 0 1.5rem; justify-content: flex-start; gap: 1rem;">
+            <button class="btn btn-outline btn-sm" onclick="hideUploadView()"><i data-lucide="arrow-left"></i> Back</button>
+            <h3 style="margin: 0; padding: 0;">Upload New Album</h3>
+        </div>
+        <div class="glass" style="padding: 2.5rem; border-radius: var(--radius); max-width: 1000px; margin: 0 auto;">
+        <form id="uploadForm" onsubmit="uploadAlbum(event)">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="albumName">Album Name *</label>
+                    <input type="text" id="albumName" placeholder="e.g. Sanika & Rahul's Wedding" required>
+                </div>
+                <div class="form-group">
+                    <label for="accessCode">Access Code *</label>
+                    <input type="text" id="accessCode" placeholder="e.g. SANIKA" required>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="description">Description (optional)</label>
+                <input type="text" id="description" placeholder="A short description…">
+            </div>
+            <div class="form-group">
+                <label for="videoFile">Wedding Video *</label>
+                <div class="file-drop" id="videoDrop">
+                    <input type="file" id="videoFile" accept="video/*" required hidden>
+                    <i data-lucide="video" class="drop-icon"></i>
+                    <p class="file-drop-text">Click or drag a video file here</p>
+                    <p class="file-drop-selected hidden" id="videoFileName"></p>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="photoFiles">Photo Frames *</label>
+                <div class="file-drop" id="photoDrop">
+                    <input type="file" id="photoFiles" accept="image/*" multiple required hidden>
+                    <i data-lucide="images" class="drop-icon"></i>
+                    <p class="file-drop-text">Click or drag photo files here</p>
+                    <p class="file-drop-selected hidden" id="photoCount"></p>
+                </div>
+            </div>
+
+            <!-- Frame Mappings (appears after photos are selected) -->
+            <div id="frameMappingsSection" class="hidden">
+                <div class="mapping-intro">
+                    <p class="mapping-intro-title"><i data-lucide="clock" class="icon-sm"></i> Frame Timestamps</p>
+                    <p class="help-text" style="color:var(--text); margin-bottom:0;">Map each photo to its exact appearance in the video (M:SS format). This enables the app to play the video from this moment when the photo is scanned.</p>
+                </div>
+                <div id="frameMappingsContainer" class="frame-mappings">
+                    <!-- filled dynamically -->
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="hideUploadView()">Cancel</button>
+                <button type="submit" class="btn btn-primary" id="uploadBtn">Upload Album</button>
+            </div>
+        </form>
+
+        <!-- Progress bar -->
+        <div id="uploadProgress" class="upload-progress hidden">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <p id="uploadStatus" class="upload-status">Uploading…</p>
+        </div>
+    </div>
+</div>
+
+<!-- ── ALBUM DETAIL MODAL ────────────────────────────────────────── -->
+<div id="detailModal" class="modal-overlay hidden">
+    <div class="modal modal-lg glass">
+        <div class="modal-header">
+            <h3 id="detailTitle">Album Details</h3>
+            <button class="btn-close" onclick="hideDetailModal()"><i data-lucide="x"></i></button>
+        </div>
+        <div id="detailContent" class="detail-content">
+            <!-- filled dynamically -->
+        </div>
+
+        <!-- Edit Frame Mappings -->
+        <div id="editMappingsSection">
+            <h4>Edit Frame Mappings</h4>
+            <p class="help-text">Update start/end timestamps (M:SS format). Click Save to apply.</p>
+            <div id="editMappingsContainer" class="frame-mappings"></div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="saveEditedMappings()"><i data-lucide="save" class="icon-sm"></i> Save Mappings</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── TOAST NOTIFICATION ────────────────────────────────────────── -->
+<div id="toast" class="toast hidden"></div>
+
+<script src="app.js"></script>
+<script>
+    // Initialize Lucide icons
+    lucide.createIcons();
+</script>
+</body>
+</html>

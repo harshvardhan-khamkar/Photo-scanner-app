@@ -1,3 +1,4 @@
+import logging
 from typing import List, Optional
 from ..repositories.album_repo import album_repo
 from ..schemas.album import AlbumCreate, FrameResponse, parse_timestamp
@@ -5,6 +6,8 @@ from .local_storage_service import save_video, save_photo
 from ..utils.embeddings import embedding_gen
 import os
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 class AlbumService:
     async def create_album_multipart(self, db, album_in_name: str, album_in_desc: Optional[str], access_code: str, video_file, photos: List, frame_mappings: Optional[List[dict]] = None):
@@ -33,7 +36,7 @@ class AlbumService:
                 try:
                     image_signature = embedding_gen.generate_embedding(photo_path)
                 except Exception as e:
-                    print(f"Embedding generation failed for {photo.filename}: {e}")
+                    logger.error("Embedding generation failed for %s: %s", photo.filename, e)
 
             # Use provided timestamps or default to 0.0 / 10.0
             ts = ts_lookup.get(photo.filename, {"start_time": 0.0, "end_time": 10.0})
