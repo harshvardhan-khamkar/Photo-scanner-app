@@ -26,12 +26,35 @@ async def connect_to_mongo():
 
     # Ensure indexes (idempotent — safe to run every startup)
     try:
-        await db_connection.db.albums.create_index(
-            "access_code", unique=True, background=True
+        # ── Users indexes ─────────────────────────────────────────
+        await db_connection.db.users.create_index(
+            "email", unique=True, background=True
         )
-        logger.info("Ensured index on albums.access_code")
+        logger.info("Ensured unique index on users.email")
+
+        # ── Albums indexes ────────────────────────────────────────
+        # NOTE: We intentionally do NOT index access_code because it is
+        # now stored as a bcrypt hash (unlock uses a full-scan verify).
+        await db_connection.db.albums.create_index(
+            "owner_id", background=True
+        )
+        logger.info("Ensured index on albums.owner_id")
+
+        await db_connection.db.albums.create_index(
+            "reset_token", background=True, sparse=True
+        )
+        logger.info("Ensured index on albums.reset_token")
+
+        # Drop the old unique index on access_code if it exists
+        existing_indexes = await db_connection.db.albums.index_information()
+        for idx_name, idx_info in existing_indexes.items():
+            keys = [k for k, _ in idx_info.get("key", [])]
+            if keys == ["access_code"]:
+                await db_connection.db.albums.drop_index(idx_name)
+                logger.info("Dropped legacy unique index on albums.access_code (%s)", idx_name)
+                break
     except Exception as e:
-        # Don't crash if index creation fails (e.g. duplicate access codes exist)
+        # Don't crash if index creation fails
         logger.warning("Index creation warning: %s", e)
 
 

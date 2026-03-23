@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
 from typing import List, Optional
-from ..schemas.album import AlbumCreate, AlbumResponse, FrameMappingRequest
+from ..schemas.album import AlbumCreate, AlbumResponse, FrameMappingRequest, AdminUpdateOwnerEmail
 from ..services.album_service import album_service
 from ..database import get_database
 from ..utils.security import get_admin_api_key
@@ -16,9 +16,21 @@ async def list_albums(
 ):
     """List all albums with basic info for the admin dashboard."""
     from ..repositories.album_repo import album_repo
+    from ..repositories.user_repo import user_repo
+
     albums = await album_repo.get_all(db)
+
+    # Batch-resolve owner emails from owner_id
+    owner_ids = {a["owner_id"] for a in albums if a.get("owner_id")}
+    owner_map = {}
+    for oid in owner_ids:
+        user = await user_repo.get_by_id(db, oid)
+        if user:
+            owner_map[oid] = user.get("email")
+
     result = []
     for a in albums:
+        oid = a.get("owner_id")
         result.append({
             "id": str(a["_id"]),
             "name": a.get("name", "Untitled"),
@@ -26,6 +38,7 @@ async def list_albums(
             "video_url": a.get("video_url", ""),
             "total_frames": len(a.get("frames", [])),
             "created_at": str(a.get("created_at", "")),
+            "owner_email": owner_map.get(oid) if oid else None,
             "frames": [
                 {
                     "photo_id": f.get("photo_id", ""),
@@ -37,6 +50,31 @@ async def list_albums(
             ],
         })
     return result
+
+
+@router.patch("/albums/{album_id}/owner-email")
+async def update_album_owner_email(
+    album_id: str,
+    body: AdminUpdateOwnerEmail,
+    db=Depends(get_database),
+    admin_key: str = Depends(get_admin_api_key),
+):
+    """Assign or change the owner email for an album (useful for legacy albums)."""
+    from ..repositories.album_repo import album_repo
+    from ..repositories.user_repo import user_repo
+
+    album = await album_repo.get_by_id(db, album_id)
+    if not album:
+        raise HTTPException(status_code=404, detail="Album not found")
+
+    owner_id = await user_repo.find_or_create(db, body.email)
+    await album_repo.update(db, album_id, {"owner_id": owner_id})
+
+    return {
+        "message": "Owner email updated successfully",
+        "album_id": album_id,
+        "owner_email": body.email,
+    }
 
 
 @router.delete("/albums/{album_id}")
@@ -61,25 +99,30 @@ async def upload_album(
     name: str = Form(...),
     description: Optional[str] = Form(None),
     access_code: str = Form(...),
+    owner_email: Optional[str] = Form(None),
     video: UploadFile = File(...),
     photos: List[UploadFile] = File(...),
-    frame_mappings: Optional[str] = Form(None),
+    frame_mappings: str = Form(...),
     db=Depends(get_database),
     admin_key: str = Depends(get_admin_api_key),
 ):
-    # Parse optional frame_mappings JSON: [{"photoId":"...", "startTime":0.0, "endTime":15.5}, ...]
-    parsed_mappings = None
-    if frame_mappings:
-        try:
-            parsed_mappings = json.loads(frame_mappings)
-        except json.JSONDecodeError:
-            raise HTTPException(status_code=400, detail="frame_mappings must be valid JSON")
+    """
+    Upload a new album with video, photos, and frame mappings in a single request.
+    
+    frame_mappings must be a JSON string like:
+    [{"photoIndex": 0, "startTime": "00:01:20", "endTime": "00:03:35"}]
+    """
+    try:
+        parsed_mappings = json.loads(frame_mappings)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid frame_mappings JSON")
 
     album_id = await album_service.create_album_multipart(
         db, name, description, access_code, video, photos,
         frame_mappings=parsed_mappings,
+        owner_email=owner_email,
     )
-    return {"album_id": album_id, "message": "Album uploaded successfully"}
+    return {"albumId": album_id, "message": "Album created successfully"}
 
 
 @router.put("/albums/{album_id}/map-frames")

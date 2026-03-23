@@ -29,3 +29,7 @@ weddingmemory/*.keystore
 weddingmemory/*.jks
 weddingmemory/*.hprof
 weddingmemory/java_pid*.hprof
+
+# Custom additions
+.agent
+design-system

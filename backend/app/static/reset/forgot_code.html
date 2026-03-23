@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forgot Access Code — Wedding Memory</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="/static/reset/reset.css">
+</head>
+<body>
+
+<div class="liquid-bg">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+</div>
+
+<div class="reset-card glass">
+    <div class="reset-logo"><i data-lucide="mail"></i></div>
+    <h1>Forgot Access Code</h1>
+    <p class="subtitle">Enter the email address associated with your wedding albums to receive a reset link.</p>
+    
+    <form id="forgotForm">
+        <div class="form-group">
+            <label for="emailInput">Email Address</label>
+            <input type="email" id="emailInput" placeholder="name@example.com" required autocomplete="email">
+        </div>
+        <button type="submit" class="btn btn-primary" id="submitBtn">Send Reset Link</button>
+    </form>
+
+    <div id="statusMsg" class="status-msg"></div>
+</div>
+
+<script>
+    lucide.createIcons();
+
+    document.getElementById('forgotForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('emailInput').value.trim();
+        const submitBtn = document.getElementById('submitBtn');
+        const statusMsg = document.getElementById('statusMsg');
+
+        if (!email) return;
+
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="lucide-loader" data-lucide="loader"></i> Sending...';
+        lucide.createIcons();
+        statusMsg.className = 'status-msg hidden';
+
+        try {
+            const res = await fetch('/api/v1/albums/forgot-code', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email })
+            });
+            const data = await res.json();
+            
+            if (res.ok) {
+                statusMsg.textContent = data.message;
+                statusMsg.className = 'status-msg success';
+                document.getElementById('emailInput').value = '';
+            } else {
+                statusMsg.textContent = data.detail || 'Failed to send reset link.';
+                statusMsg.className = 'status-msg error';
+            }
+        } catch (err) {
+            statusMsg.textContent = 'A network error occurred. Please try again.';
+            statusMsg.className = 'status-msg error';
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Send Reset Link';
+        }
+    });
+</script>
+</body>
+</html>

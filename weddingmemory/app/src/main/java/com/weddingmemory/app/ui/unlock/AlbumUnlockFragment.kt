@@ -1,5 +1,7 @@
 package com.weddingmemory.app.ui.unlock
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -12,6 +14,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
+import com.weddingmemory.app.BuildConfig
 import com.weddingmemory.app.R
 import com.weddingmemory.app.databinding.FragmentAlbumUnlockBinding
 import dagger.hilt.android.AndroidEntryPoint
@@ -65,6 +68,12 @@ class AlbumUnlockFragment : Fragment() {
 
     private fun setupUi() {
         binding.btnUnlock.setOnClickListener { submitCode() }
+
+        binding.btnForgotCode.setOnClickListener {
+            val url = BuildConfig.API_BASE_URL + "forgot-code"
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+            startActivity(intent)
+        }
 
         binding.etAlbumCode.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_DONE) {

@@ -26,10 +26,12 @@ function updateThemeIcon() {
 document.addEventListener('DOMContentLoaded', initTheme);
 
 // ── API config ──────────────────────────────────────────────────
-// If running directly from file index.html, fallback to localhost:8000
-const API = window.location.protocol === 'file:' 
-    ? 'http://localhost:8000/api/v1/admin' 
-    : '/api/v1/admin';
+// Automatically handle Live Server (5500) or file:// protocol
+let API = '/api/v1/admin';
+if (window.location.protocol === 'file:' || 
+    ((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && window.location.port !== '8000')) {
+    API = 'http://127.0.0.1:8000/api/v1/admin';
+}
 
 let API_KEY = '';
 let albums = [];
@@ -101,11 +103,17 @@ function renderAlbums() {
         <div class="album-card" onclick="viewAlbum('${a.id}')">
             <div class="album-card-header">
                 <span class="album-card-title">${esc(a.name)}</span>
-                <span class="album-card-code">${esc(a.access_code)}</span>
+                <span class="album-card-code" title="Access Code">${a.access_code.startsWith('$2b$') ? '••••••••' : esc(a.access_code)}</span>
             </div>
             <div class="album-card-meta">
                 <span><i data-lucide="image"></i> ${a.total_frames} frames</span>
                 <span><i data-lucide="calendar"></i> ${formatDate(a.created_at)}</span>
+            </div>
+            <div class="album-card-meta" style="margin-top: 0.25rem;">
+                <span title="Owner Email" style="${a.owner_email ? '' : 'color: var(--md-error, #b3261e);'}">
+                    <i data-lucide="${a.owner_email ? 'mail' : 'alert-triangle'}"></i>
+                    ${a.owner_email ? esc(a.owner_email) : 'No owner — set email'}
+                </span>
             </div>
             <div class="album-card-actions">
                 <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); viewAlbum('${a.id}')"><i data-lucide="info" class="icon-sm"></i> Details</button>
@@ -129,11 +137,26 @@ function viewAlbum(id) {
     document.getElementById('detailContent').innerHTML = `
         <div class="detail-info">
             <span class="detail-label">Album ID</span><span>${a.id}</span>
-            <span class="detail-label">Access Code</span><span>${esc(a.access_code)}</span>
+            <span class="detail-label">Access Code</span><span>${a.access_code.startsWith('$2b$') ? '[Secured Hash]' : esc(a.access_code)}</span>
             <span class="detail-label">Frames</span><span>${a.total_frames}</span>
             <span class="detail-label">Created</span><span>${formatDate(a.created_at)}</span>
+            <span class="detail-label">Owner Email</span>
+            <span style="${a.owner_email ? '' : 'color: var(--md-error); font-family: var(--font-sans);'}">
+                ${a.owner_email ? esc(a.owner_email) : '⚠ Not set'}
+            </span>
         </div>
     `;
+
+    // Populate owner email field
+    document.getElementById('ownerEmailEdit').value = a.owner_email || '';
+    const statusEl = document.getElementById('ownerEmailStatus');
+    if (a.owner_email) {
+        statusEl.textContent = `Currently owned by ${a.owner_email}`;
+        statusEl.style.color = '';
+    } else {
+        statusEl.textContent = '⚠ No owner — forgot-code reset will not work for this album';
+        statusEl.style.color = 'var(--md-error)';
+    }
 
     // Editable frame mappings
     const container = document.getElementById('editMappingsContainer');
@@ -177,6 +200,33 @@ async function saveEditedMappings() {
         await fetchAlbums();
     } catch (e) {
         toast('Failed to save: ' + e.message, 'error');
+    }
+}
+
+/* ── Update Owner Email ──────────────────────────────────────── */
+async function updateOwnerEmail() {
+    if (!currentAlbumId) return;
+    const email = document.getElementById('ownerEmailEdit').value.trim();
+    if (!email) {
+        toast('Please enter an email address', 'error');
+        return;
+    }
+    try {
+        const res = await fetch(`${API}/albums/${currentAlbumId}/owner-email`, {
+            method: 'PATCH',
+            headers: { ...headers(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email }),
+        });
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.detail || 'Failed to update');
+        }
+        toast('Owner email updated!', 'success');
+        document.getElementById('ownerEmailStatus').textContent = `Currently owned by ${email}`;
+        document.getElementById('ownerEmailStatus').style.color = '';
+        await fetchAlbums();
+    } catch (e) {
+        toast('Failed: ' + e.message, 'error');
     }
 }
 
@@ -281,6 +331,7 @@ async function uploadAlbum(e) {
     const name = document.getElementById('albumName').value.trim();
     const code = document.getElementById('accessCode').value.trim().toUpperCase();
     const desc = document.getElementById('description').value.trim();
+    const ownerEmail = document.getElementById('ownerEmail')?.value.trim();
     const video = document.getElementById('videoFile').files[0];
     const photos = document.getElementById('photoFiles').files;
 
@@ -291,7 +342,7 @@ async function uploadAlbum(e) {
 
     // Build frame_mappings JSON
     const mappings = Array.from(photos).map((f, i) => ({
-        photoId: f.name,
+        photoIndex: i,
         startTime: document.getElementById(`mapStart_${i}`)?.value || '0:00',
         endTime: document.getElementById(`mapEnd_${i}`)?.value || '0:10',
     }));
@@ -300,6 +351,7 @@ async function uploadAlbum(e) {
     formData.append('name', name);
     formData.append('access_code', code);
     if (desc) formData.append('description', desc);
+    if (ownerEmail) formData.append('owner_email', ownerEmail);
     formData.append('video', video);
     for (const photo of photos) {
         formData.append('photos', photo);
@@ -342,8 +394,8 @@ async function uploadAlbum(e) {
             xhr.send(formData);
         });
 
-        toast(`Album created! ID: ${result.album_id}`, 'success');
-        hideUploadModal();
+        toast(`Album created! ID: ${result.albumId}`, 'success');
+        hideUploadView();
         await fetchAlbums();
 
     } catch (err) {

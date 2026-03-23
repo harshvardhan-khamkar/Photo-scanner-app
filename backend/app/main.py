@@ -8,7 +8,7 @@ from fastapi.openapi.utils import get_openapi
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from .utils.rate_limiter import limiter
-from .routers import admin, mobile, albums
+from .routers import admin, mobile, albums, users
 from .database import connect_to_mongo, close_mongo_connection
 from .config import settings
 from contextlib import asynccontextmanager
@@ -103,10 +103,15 @@ app.mount("/storage", StaticFiles(directory="storage"), name="storage")
 admin_ui_path = os.path.join(os.path.dirname(__file__), "..", "..", "admin_ui")
 app.mount("/static/admin", StaticFiles(directory=admin_ui_path), name="admin_static")
 
+# ── Reset UI static files ─────────────────────────────────────────────
+reset_ui_path = os.path.join(os.path.dirname(__file__), "static", "reset")
+app.mount("/static/reset", StaticFiles(directory=reset_ui_path), name="reset_static")
+
 # ── Routers ───────────────────────────────────────────────────────────
 app.include_router(admin.router, prefix=settings.API_V1_STR)
 app.include_router(mobile.router, prefix=settings.API_V1_STR)
 app.include_router(albums.router, prefix=settings.API_V1_STR)
+app.include_router(users.router, prefix=settings.API_V1_STR)
 
 
 @app.get("/")
@@ -120,3 +125,13 @@ async def admin_redirect():
     from fastapi.responses import RedirectResponse
     # Redirecting allows relative links like "style.css" to resolve correctly in the browser
     return RedirectResponse("/static/admin/index.html")
+
+@app.get("/forgot-code")
+async def forgot_code_page():
+    from fastapi.responses import FileResponse
+    return FileResponse(os.path.join(reset_ui_path, "forgot_code.html"))
+
+@app.get("/reset-code")
+async def reset_code_page():
+    from fastapi.responses import FileResponse
+    return FileResponse(os.path.join(reset_ui_path, "reset_code.html"))

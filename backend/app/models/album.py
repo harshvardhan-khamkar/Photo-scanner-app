@@ -29,9 +29,12 @@ class AlbumDocument(BaseModel):
     id: Optional[PyObjectId] = Field(alias="_id", default=None)
     name: str
     description: Optional[str] = None
-    access_code: str
+    access_code: str  # Stored as bcrypt hash
     video_url: str
     frames: List[FrameDocument] = []
+    owner_id: Optional[str] = None  # Reference to User._id
+    reset_token: Optional[str] = None  # SHA-256 hash of reset token
+    reset_token_expiry: Optional[datetime] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     class Config:

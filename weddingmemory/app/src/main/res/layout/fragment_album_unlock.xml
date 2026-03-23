@@ -80,6 +80,20 @@
             app:layout_constraintTop_toBottomOf="@id/tilAlbumCode"
             tools:ignore="HardcodedText" />
 
+        <!-- Forgot Code button -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnForgotCode"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Forgot Code?"
+            android:textColor="?attr/colorPrimary"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/btnUnlock"
+            tools:ignore="HardcodedText" />
+
         <!-- Progress indicator -->
         <com.google.android.material.progressindicator.LinearProgressIndicator
             android:id="@+id/progressBar"
@@ -89,7 +103,7 @@
             android:visibility="invisible"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/btnUnlock"
+            app:layout_constraintTop_toBottomOf="@id/btnForgotCode"
             app:trackCornerRadius="4dp"
             tools:visibility="visible" />
 

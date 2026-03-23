@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wedding Memory — Admin Dashboard</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Varela+Round&family=Nunito+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
-    <link rel="stylesheet" href="style.css?v=3">
+    <link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
 
@@ -53,21 +53,21 @@
     <div id="homeView" class="view active">
         <!-- Stats Row -->
         <div class="stats-row">
-            <div class="stat-card glass">
+            <div class="stat-card">
                 <div class="stat-icon"><i data-lucide="layers"></i></div>
                 <div class="stat-content">
                     <span class="stat-value" id="statAlbums">0</span>
                     <span class="stat-label">Total Albums</span>
                 </div>
             </div>
-            <div class="stat-card glass">
+            <div class="stat-card">
                 <div class="stat-icon"><i data-lucide="image"></i></div>
                 <div class="stat-content">
                     <span class="stat-value" id="statFrames">0</span>
                     <span class="stat-label">Total Frames</span>
                 </div>
             </div>
-            <div class="stat-card glass">
+            <div class="stat-card">
                 <div class="stat-icon"><i data-lucide="calendar"></i></div>
                 <div class="stat-content">
                     <span class="stat-value" id="statLatest">—</span>
@@ -94,7 +94,7 @@
             <button class="btn btn-outline btn-sm" onclick="hideUploadView()"><i data-lucide="arrow-left"></i> Back</button>
             <h3 style="margin: 0; padding: 0;">Upload New Album</h3>
         </div>
-        <div class="glass" style="padding: 2.5rem; border-radius: var(--radius); max-width: 1000px; margin: 0 auto;">
+        <div class="upload-container" style="background-color: var(--md-surface-container); padding: 2.5rem; border-radius: var(--md-radius-xl); max-width: 1000px; margin: 0 auto; box-shadow: var(--md-shadow-1);">
         <form id="uploadForm" onsubmit="uploadAlbum(event)">
             <div class="form-row">
                 <div class="form-group">
@@ -106,9 +106,15 @@
                     <input type="text" id="accessCode" placeholder="e.g. SANIKA" required>
                 </div>
             </div>
-            <div class="form-group">
-                <label for="description">Description (optional)</label>
-                <input type="text" id="description" placeholder="A short description…">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="description">Description (optional)</label>
+                    <input type="text" id="description" placeholder="A short description…">
+                </div>
+                <div class="form-group">
+                    <label for="ownerEmail">Owner Email (optional)</label>
+                    <input type="email" id="ownerEmail" placeholder="user@example.com">
+                </div>
             </div>
             <div class="form-group">
                 <label for="videoFile">Wedding Video *</label>
@@ -133,7 +139,7 @@
             <div id="frameMappingsSection" class="hidden">
                 <div class="mapping-intro">
                     <p class="mapping-intro-title"><i data-lucide="clock" class="icon-sm"></i> Frame Timestamps</p>
-                    <p class="help-text" style="color:var(--text); margin-bottom:0;">Map each photo to its exact appearance in the video (M:SS format). This enables the app to play the video from this moment when the photo is scanned.</p>
+                    <p class="help-text" style="color:var(--md-on-surface-variant); margin-bottom:0;">Map each photo to its exact appearance in the video (M:SS format). This enables the app to play the video from this moment when the photo is scanned.</p>
                 </div>
                 <div id="frameMappingsContainer" class="frame-mappings">
                     <!-- filled dynamically -->
@@ -158,13 +164,27 @@
 
 <!-- ── ALBUM DETAIL MODAL ────────────────────────────────────────── -->
 <div id="detailModal" class="modal-overlay hidden">
-    <div class="modal modal-lg glass">
+    <div class="modal modal-lg">
         <div class="modal-header">
             <h3 id="detailTitle">Album Details</h3>
             <button class="btn-close" onclick="hideDetailModal()"><i data-lucide="x"></i></button>
         </div>
         <div id="detailContent" class="detail-content">
             <!-- filled dynamically -->
+        </div>
+
+        <!-- Owner Email Edit -->
+        <div class="owner-email-section" style="padding: 0 1.5rem; margin-bottom: 1.5rem;">
+            <h4 style="margin-bottom: 1rem;">Owner Email</h4>
+            <div style="display: flex; gap: 1rem; align-items: flex-start;">
+                <div class="form-group" style="flex: 1; margin: 0;">
+                    <input type="email" id="ownerEmailEdit" placeholder="user@example.com">
+                </div>
+                <button class="btn btn-primary" style="height: 56px;" onclick="updateOwnerEmail()">
+                    <i data-lucide="save" class="icon-sm"></i> Save
+                </button>
+            </div>
+            <p id="ownerEmailStatus" class="help-text" style="margin-top: 0.5rem;"></p>
         </div>
 
         <!-- Edit Frame Mappings -->
@@ -182,7 +202,7 @@
 <!-- ── TOAST NOTIFICATION ────────────────────────────────────────── -->
 <div id="toast" class="toast hidden"></div>
 
-<script src="app.js"></script>
+<script src="app.js?v=4"></script>
 <script>
     // Initialize Lucide icons
     lucide.createIcons();

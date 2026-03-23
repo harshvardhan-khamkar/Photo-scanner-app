@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional
 from datetime import datetime
 
@@ -106,3 +106,24 @@ class MobileAlbumV2(BaseModel):
 class MobileUnlockResponseV2(BaseModel):
     album: MobileAlbumV2
     message: str = "Success"
+
+
+# ── Access code management schemas ────────────────────────────────────
+
+class ForgotCodeRequest(BaseModel):
+    email: str = Field(..., example="user@example.com")
+
+
+class ResetCodeRequest(BaseModel):
+    token: str = Field(..., example="abc123...")
+    newAccessCode: str = Field(..., min_length=4, example="1234")
+
+
+class ChangeCodeRequest(BaseModel):
+    albumId: str = Field(..., example="60d...")
+    oldAccessCode: str = Field(..., example="WED2026")
+    newAccessCode: str = Field(..., min_length=4, example="1234")
+
+
+class AdminUpdateOwnerEmail(BaseModel):
+    email: EmailStr = Field(..., example="owner@example.com")

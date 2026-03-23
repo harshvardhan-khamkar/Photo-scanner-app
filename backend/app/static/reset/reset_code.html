@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reset Access Code — Wedding Memory</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="/static/reset/reset.css">
+</head>
+<body>
+
+<div class="liquid-bg">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+</div>
+
+<div class="reset-card glass" id="mainCard">
+    <div class="reset-logo"><i data-lucide="key-round"></i></div>
+    <h1>Reset Access Code</h1>
+    <p class="subtitle">Enter a new secure access code for your album.</p>
+    
+    <form id="resetForm">
+        <div class="form-group">
+            <label for="newCodeInput">New Access Code (min 4 characters)</label>
+            <input type="password" id="newCodeInput" placeholder="Enter new access code" required minlength="4">
+        </div>
+        <div class="form-group">
+            <label for="confirmCodeInput">Confirm Access Code</label>
+            <input type="text" id="confirmCodeInput" placeholder="Confirm new access code" required minlength="4">
+        </div>
+        <button type="submit" class="btn btn-primary" id="submitBtn">Reset Code</button>
+    </form>
+
+    <div id="statusMsg" class="status-msg"></div>
+</div>
+
+<!-- Token Missing Card -->
+<div class="reset-card glass hidden" id="errorCard">
+    <div class="reset-logo" style="color: var(--red);"><i data-lucide="alert-triangle"></i></div>
+    <h1>Invalid Link</h1>
+    <p class="subtitle">This reset link is invalid or has expired.</p>
+    <button class="btn btn-primary" onclick="window.location.href='/forgot-code'">Request New Link</button>
+</div>
+
+<script>
+    lucide.createIcons();
+
+    // Parse ?token=XYZ from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+
+    if (!token) {
+        document.getElementById('mainCard').classList.add('hidden');
+        document.getElementById('errorCard').classList.remove('hidden');
+    }
+
+    document.getElementById('resetForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const newCode = document.getElementById('newCodeInput').value;
+        const confirmCode = document.getElementById('confirmCodeInput').value;
+        const submitBtn = document.getElementById('submitBtn');
+        const statusMsg = document.getElementById('statusMsg');
+        
+        statusMsg.className = 'status-msg hidden';
+
+        if (newCode !== confirmCode) {
+            statusMsg.textContent = "Access codes do not match.";
+            statusMsg.className = 'status-msg error';
+            return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="lucide-loader" data-lucide="loader"></i> Resetting...';
+        lucide.createIcons();
+
+        try {
+            const res = await fetch('/api/v1/albums/reset-code', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token, newAccessCode: newCode })
+            });
+            const data = await res.json();
+            
+            if (res.ok) {
+                statusMsg.textContent = "Success! Your access code has been reset.";
+                statusMsg.className = 'status-msg success';
+                document.getElementById('resetForm').reset();
+                document.getElementById('resetForm').classList.add('hidden');
+                submitBtn.classList.add('hidden');
+            } else {
+                statusMsg.textContent = data.detail || 'Failed to reset code. Token may be expired.';
+                statusMsg.className = 'status-msg error';
+            }
+        } catch (err) {
+            statusMsg.textContent = 'A network error occurred. Please try again.';
+            statusMsg.className = 'status-msg error';
+        } finally {
+            submitBtn.disabled = false;
+            if(!submitBtn.classList.contains('hidden')) {
+                submitBtn.textContent = 'Reset Code';
+            }
+        }
+    });
+</script>
+</body>
+</html>

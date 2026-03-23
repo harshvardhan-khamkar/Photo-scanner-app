@@ -22,6 +22,13 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "CHANGE-ME-generate-a-real-key"
     ADMIN_API_KEY: str = "CHANGE-ME-generate-a-real-admin-key"
 
+    # SMTP / Email
+    SMTP_HOST: Optional[str] = None
+    SMTP_PORT: Optional[int] = 587
+    SMTP_USER: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    SMTP_FROM_EMAIL: Optional[str] = None
+
     # CORS
     ALLOWED_ORIGINS: str = "*"
 
