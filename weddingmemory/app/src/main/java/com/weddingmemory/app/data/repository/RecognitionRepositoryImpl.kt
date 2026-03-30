@@ -43,7 +43,7 @@ class RecognitionRepositoryImpl @Inject constructor(
          * Minimum cosine similarity for the top candidate to be considered a match.
          * Tune upward to reduce false positives; downward to reduce missed matches.
          */
-        const val MATCH_THRESHOLD = 0.50f
+        const val MATCH_THRESHOLD = 0.60f
 
         /**
          * Minimum gap between the best and second-best similarity scores.
@@ -51,7 +51,14 @@ class RecognitionRepositoryImpl @Inject constructor(
          * Tune upward for stricter discrimination; downward if the album has
          * visually similar frames that legitimately score close together.
          */
-        const val MIN_MARGIN = 0.05f
+        const val MIN_MARGIN = 0.15f
+
+        /**
+         * Warn when two stored frame embeddings are already extremely close.
+         * This helps surface albums where two source photos are likely to confuse
+         * the live recogniser before the user starts scanning.
+         */
+        private const val STORED_DUPLICATE_WARNING_THRESHOLD = 0.92f
     }
 
     // albumId → loaded EmbeddingEngine
@@ -75,6 +82,7 @@ class RecognitionRepositoryImpl @Inject constructor(
             albumEmbeddings[albumId] = frames.map { frame ->
                 FrameEmbedding(frame, parseSignature(frame.imageSignature))
             }
+            logPotentialNearDuplicates(albumId, albumEmbeddings[albumId].orEmpty())
 
             // Engine load is fail-safe: if the model asset is missing the scanner
             // still opens — recognizeFrame will return Unrecognised until the model
@@ -124,11 +132,9 @@ class RecognitionRepositoryImpl @Inject constructor(
         }
 
         // Zero-allocation inference — result written into pre-allocated queryBuffer
-        var bestScore       = 0f
-        var secondBestScore = 0f
-        var bestEmbedding: FrameEmbedding? = null
         val orientationBuffer = FloatArray(EmbeddingEngine.EMBEDDING_DIM)
         val candidates = buildOrientationCandidates(image)
+        val frameScores = mutableMapOf<String, Float>()
 
         try {
             for ((rotationDegrees, candidateImage) in candidates) {
@@ -139,24 +145,11 @@ class RecognitionRepositoryImpl @Inject constructor(
                 for (fe in storedEmbeddings) {
                     if (fe.embedding.isEmpty()) continue
                     val score = cosineSimilarity(fe.embedding, targetBuffer)
-                    when {
-                        score > bestScore -> {
-                            secondBestScore = bestScore
-                            bestScore = score
-                            bestEmbedding = fe
-                        }
-                        score > secondBestScore -> {
-                            secondBestScore = score
-                        }
-                    }
-                }
 
-                Timber.d(
-                    "RecognitionRepository: orientation=%d best=%.4f frameId=%s",
-                    rotationDegrees,
-                    bestScore,
-                    bestEmbedding?.frame?.id ?: "none"
-                )
+                    // Keep highest score per frame across all orientations
+                    val current = frameScores[fe.frame.id] ?: 0f
+                    if (score > current) frameScores[fe.frame.id] = score
+                }
             }
         } finally {
             candidates
@@ -164,14 +157,27 @@ class RecognitionRepositoryImpl @Inject constructor(
                 .forEach { (_, candidateImage) -> candidateImage.recycle() }
         }
 
+        // Now find best and second best from per-frame maximums
+        val sorted = frameScores.entries.sortedByDescending { it.value }
+        val bestEntry = sorted.getOrNull(0)
+        val secondEntry = sorted.getOrNull(1)
+
+        val bestScore = bestEntry?.value ?: 0f
+        val secondBestScore = secondEntry?.value ?: 0f
+        val bestEmbedding = storedEmbeddings.find { it.frame.id == bestEntry?.key }
+        val topMatches = sorted
+            .take(3)
+            .joinToString(", ") { "${it.key}=%.4f".format(it.value) }
+            .ifBlank { "none" }
+
         val latencyMs = System.currentTimeMillis() - start
         val margin    = bestScore - secondBestScore
 
         val frameIdStr = bestEmbedding?.frame?.id ?: "none"
         val matchStr = if (bestEmbedding != null && bestScore >= MATCH_THRESHOLD && margin >= MIN_MARGIN) "MATCH" else "NO_MATCH"
-        
+
         Timber.d(
-            "RecognitionRepository: best=%.4f second=%.4f margin=%.4f frameId=$frameIdStr thr=%.2f minMargin=%.2f ${latencyMs}ms → $matchStr".format(
+            "RecognitionRepository: best=%.4f second=%.4f margin=%.4f frameId=$frameIdStr thr=%.2f minMargin=%.2f top=[$topMatches] ${latencyMs}ms → $matchStr".format(
                 bestScore, secondBestScore, margin, MATCH_THRESHOLD, MIN_MARGIN
             )
         )
@@ -237,10 +243,6 @@ class RecognitionRepositoryImpl @Inject constructor(
     }
 
     private fun buildOrientationCandidates(image: Bitmap): List<Pair<Int, Bitmap>> {
-        if (image.width == image.height) {
-            return listOf(0 to image)
-        }
-
         return listOf(
             0 to image,
             90 to image.rotate(90f),
@@ -251,6 +253,31 @@ class RecognitionRepositoryImpl @Inject constructor(
     private fun Bitmap.rotate(rotationDegrees: Float): Bitmap {
         val matrix = Matrix().apply { postRotate(rotationDegrees) }
         return Bitmap.createBitmap(this, 0, 0, width, height, matrix, true)
+    }
+
+    private fun logPotentialNearDuplicates(albumId: String, embeddings: List<FrameEmbedding>) {
+        if (embeddings.size < 2) return
+
+        for (i in 0 until embeddings.lastIndex) {
+            val left = embeddings[i]
+            if (left.embedding.isEmpty()) continue
+
+            for (j in i + 1 until embeddings.size) {
+                val right = embeddings[j]
+                if (right.embedding.isEmpty()) continue
+
+                val score = cosineSimilarity(left.embedding, right.embedding)
+                if (score >= STORED_DUPLICATE_WARNING_THRESHOLD) {
+                    Timber.w(
+                        "RecognitionRepository: album=%s has very similar stored frames %s and %s (score=%.4f)",
+                        albumId,
+                        left.frame.id,
+                        right.frame.id,
+                        score
+                    )
+                }
+            }
+        }
     }
 
     // -------------------------------------------------------------------------

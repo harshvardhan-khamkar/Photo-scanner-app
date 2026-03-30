@@ -78,11 +78,22 @@ class ScannerViewModel @Inject constructor(
     /** Minimum time between processed frames in milliseconds. */
     private val frameIntervalMs = 500L
 
+    /**
+     * Require the same frame to win repeatedly before navigating.
+     * This filters out one-off ambiguous wins between visually similar photos.
+     */
+    private val requiredStableMatches = 2
+    private val stableMatchWindowMs = 2_000L
+    private var pendingFrameId: String? = null
+    private var pendingFrameSeenAtMs = 0L
+    private var pendingFrameCount = 0
+
     /** Album currently being scanned — set by ScannerFragment from nav args. */
     private var currentAlbumId = ""
 
     fun setAlbumId(albumId: String) {
         currentAlbumId = albumId
+        resetPendingMatch()
         Timber.d("ScannerViewModel: albumId set to $albumId")
     }
 
@@ -128,6 +139,7 @@ class ScannerViewModel @Inject constructor(
 
     /** Called by the Fragment after navigating away from Matched state. */
     fun resetToReady() {
+        resetPendingMatch()
         if (_uiState.value is ScannerUiState.Matched) {
             _uiState.value = ScannerUiState.Ready
         }
@@ -177,10 +189,51 @@ class ScannerViewModel @Inject constructor(
     private fun handleResult(result: RecognitionResult) {
         _uiState.value = when (result) {
             is RecognitionResult.Scanning      -> ScannerUiState.Recognizing
-            is RecognitionResult.Recognised    -> ScannerUiState.Matched(result.frame)
-            is RecognitionResult.Unrecognised  -> ScannerUiState.NoMatch
-            is RecognitionResult.Error         -> ScannerUiState.Error(result.message)
+            is RecognitionResult.Recognised    -> promoteStableMatch(result) ?: ScannerUiState.Ready
+            is RecognitionResult.Unrecognised  -> {
+                resetPendingMatch()
+                ScannerUiState.NoMatch
+            }
+            is RecognitionResult.Error         -> {
+                resetPendingMatch()
+                ScannerUiState.Error(result.message)
+            }
         }
+    }
+
+    private fun promoteStableMatch(result: RecognitionResult.Recognised): ScannerUiState.Matched? {
+        val now = System.currentTimeMillis()
+        val isSameCandidate = pendingFrameId == result.frame.id
+        val isWithinWindow = now - pendingFrameSeenAtMs <= stableMatchWindowMs
+
+        if (isSameCandidate && isWithinWindow) {
+            pendingFrameCount += 1
+        } else {
+            pendingFrameId = result.frame.id
+            pendingFrameCount = 1
+        }
+
+        pendingFrameSeenAtMs = now
+        Timber.d(
+            "ScannerViewModel: candidate frameId=%s confidence=%.4f stability=%d/%d",
+            result.frame.id,
+            result.confidence,
+            pendingFrameCount,
+            requiredStableMatches
+        )
+
+        if (pendingFrameCount < requiredStableMatches) {
+            return null
+        }
+
+        resetPendingMatch()
+        return ScannerUiState.Matched(result.frame)
+    }
+
+    private fun resetPendingMatch() {
+        pendingFrameId = null
+        pendingFrameSeenAtMs = 0L
+        pendingFrameCount = 0
     }
 
     // -------------------------------------------------------------------------

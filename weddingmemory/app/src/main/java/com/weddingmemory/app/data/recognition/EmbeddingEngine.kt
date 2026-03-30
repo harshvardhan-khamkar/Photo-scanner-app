@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.Rect
 import android.graphics.RectF
 import org.tensorflow.lite.Interpreter
 import timber.log.Timber
@@ -42,6 +43,7 @@ class EmbeddingEngine(private val context: Context) : Closeable {
         const val MODEL_ASSET   = "embedding_model.tflite"
         const val INPUT_SIZE    = 224
         const val EMBEDDING_DIM = 1280      // MobileNetV2 output dim
+        private const val QUERY_CENTER_CROP_FRACTION = 0.80f
 
         private const val NUM_CHANNELS   = 3
         private const val BYTES_PER_FLOAT = 4
@@ -217,7 +219,8 @@ class EmbeddingEngine(private val context: Context) : Closeable {
     private fun runInference(interp: Interpreter, source: Bitmap): FloatArray {
         // Step 1 — Scale source bitmap into pre-allocated 224×224 canvas
         val destRect = RectF(0f, 0f, INPUT_SIZE.toFloat(), INPUT_SIZE.toFloat())
-        scaledCanvas.drawBitmap(source, null, destRect, scaledPaint)
+        val sourceRect = buildCenterCropRect(source.width, source.height)
+        scaledCanvas.drawBitmap(source, sourceRect, destRect, scaledPaint)
 
         // Step 2 — Extract packed ARGB pixels into pre-allocated IntArray
         scaledBitmap.getPixels(pixelBuffer, 0, INPUT_SIZE, 0, 0, INPUT_SIZE, INPUT_SIZE)
@@ -293,5 +296,19 @@ class EmbeddingEngine(private val context: Context) : Closeable {
         if (norm < 1e-10f) return v
         for (i in v.indices) v[i] /= norm
         return v
+    }
+
+    /**
+     * Bias recognition toward the centre of the camera frame so the live query
+     * better matches the clean uploaded photo embedding and ignores more of the
+     * surrounding room, hands, borders, and table background.
+     */
+    private fun buildCenterCropRect(width: Int, height: Int): Rect {
+        val cropSize = (minOf(width, height) * QUERY_CENTER_CROP_FRACTION)
+            .toInt()
+            .coerceAtLeast(1)
+        val left = ((width - cropSize) / 2).coerceAtLeast(0)
+        val top = ((height - cropSize) / 2).coerceAtLeast(0)
+        return Rect(left, top, left + cropSize, top + cropSize)
     }
 }
