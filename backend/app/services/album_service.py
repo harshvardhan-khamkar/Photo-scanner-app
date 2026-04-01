@@ -76,7 +76,18 @@ class AlbumService:
                 try:
                     image_signature = embedding_gen.generate_embedding(photo_path)
                 except Exception as e:
-                    logger.error("Embedding generation failed for %s: %s", photo.filename, e)
+                    # Issue #9 — Surface embedding failures clearly instead of silently storing empty
+                    logger.warning(
+                        "Embedding generation FAILED for %s: %s — "
+                        "this frame will NOT be matchable until re-uploaded",
+                        photo.filename, e,
+                    )
+            else:
+                # Issue #9 — Warn admin that the engine isn't available at all
+                logger.warning(
+                    "EmbeddingGenerator not initialized — storing empty signature for %s",
+                    photo.filename,
+                )
 
             ts = mapping_dict[i]
             

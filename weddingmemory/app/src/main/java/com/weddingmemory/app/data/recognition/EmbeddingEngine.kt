@@ -216,6 +216,8 @@ class EmbeddingEngine(private val context: Context) : Closeable {
      * ⚠️  The returned FloatArray IS [outputBuffer][0] — do NOT store it directly.
      *    Call [copyOf] if you need to keep the result (see [extractEmbedding]).
      */
+    // Issue #7 — Synchronized to protect shared mutable buffers from concurrent access
+    @Synchronized
     private fun runInference(interp: Interpreter, source: Bitmap): FloatArray {
         // Step 1 — Scale source bitmap into pre-allocated 224×224 canvas
         val destRect = RectF(0f, 0f, INPUT_SIZE.toFloat(), INPUT_SIZE.toFloat())

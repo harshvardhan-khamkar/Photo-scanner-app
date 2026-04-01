@@ -9,8 +9,8 @@ frame `imageSignature` field.
 Normalization matches Android EmbeddingEngine exactly:
     normalized = (pixel_channel / 127.5) - 1.0   → range [-1, 1]
 
-Base64 encoding uses URL-safe alphabet (no padding stripped) because
-Android RecognitionRepositoryImpl uses Base64.getUrlDecoder().
+Base64 encoding uses standard alphabet (+/) to match the backend
+(embeddings.py). Android's parseSignature() handles both formats.
 
 Usage:
     python generate_embeddings.py --model embedding_model.tflite --images ./photos
@@ -75,13 +75,22 @@ def preprocess(image_path: Path) -> np.ndarray:
     """
     Load and preprocess one image into a [1, 224, 224, 3] float32 tensor.
 
-    Steps mirror EmbeddingEngine.kt:
+    Steps mirror EmbeddingEngine.kt and backend embeddings.py:
       1. Open in RGB (strip alpha if present)
-      2. Resize to 224×224 with BILINEAR filter
-      3. Normalize: (channel / 127.5) - 1.0
-      4. Add batch dimension
+      2. Center-crop to largest inscribed square (Issue #12)
+      3. Resize to 224×224 with BILINEAR filter
+      4. Normalize: (channel / 127.5) - 1.0
+      5. Add batch dimension
     """
     img = Image.open(image_path).convert("RGB")
+
+    # Issue #12 — Center-crop to square before resize (matches backend + Android)
+    w, h = img.size
+    short = min(w, h)
+    left = (w - short) // 2
+    top  = (h - short) // 2
+    img = img.crop((left, top, left + short, top + short))
+
     img = img.resize((INPUT_SIZE, INPUT_SIZE), Image.BILINEAR)
 
     arr = np.array(img, dtype=np.float32)   # shape [224, 224, 3]
@@ -112,14 +121,15 @@ def l2_normalize(v: np.ndarray) -> np.ndarray:
 
 def to_base64(embedding: np.ndarray) -> str:
     """
-    Encode a float32 numpy array as URL-safe Base64 (no newlines).
+    Encode a float32 numpy array as standard Base64 (no newlines).
 
     Byte order: little-endian float32 — matches Android's:
         ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
-    Alphabet: URL-safe — matches Android's Base64.getUrlDecoder().
+    Issue #12 — Switched from URL-safe to standard Base64 to match backend.
+    Android's parseSignature() handles both formats via fallback.
     """
     raw_bytes = embedding.astype("<f4").tobytes()          # little-endian float32
-    return base64.urlsafe_b64encode(raw_bytes).decode("ascii")
+    return base64.b64encode(raw_bytes).decode("ascii")     # Issue #12 — standard Base64
 
 
 def verify_normalization(embedding: np.ndarray, filename: str) -> None:

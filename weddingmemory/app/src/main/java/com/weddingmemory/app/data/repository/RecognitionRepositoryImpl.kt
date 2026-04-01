@@ -43,15 +43,15 @@ class RecognitionRepositoryImpl @Inject constructor(
          * Minimum cosine similarity for the top candidate to be considered a match.
          * Tune upward to reduce false positives; downward to reduce missed matches.
          */
-        const val MATCH_THRESHOLD = 0.60f
+        // Issue #11 — Tuned thresholds (assumes Issues #1/#2 fixed and albums re-uploaded)
+        const val MATCH_THRESHOLD = 0.62f
 
         /**
          * Minimum gap between the best and second-best similarity scores.
          * Forces the engine to be unambiguous — a near-tie is treated as no-match.
-         * Tune upward for stricter discrimination; downward if the album has
-         * visually similar frames that legitimately score close together.
+         * Issue #11 — Lowered from 0.15 → 0.06 to stop rejecting correct matches.
          */
-        const val MIN_MARGIN = 0.15f
+        const val MIN_MARGIN = 0.06f
 
         /**
          * Warn when two stored frame embeddings are already extremely close.
@@ -69,6 +69,9 @@ class RecognitionRepositoryImpl @Inject constructor(
 
     // albumId → pre-allocated query buffer for zero-alloc per-frame inference
     private val queryBuffers = mutableMapOf<String, FloatArray>()
+
+    // Issue #8 — Pre-allocated orientation buffer (was allocated per-frame)
+    private val orientationBuffers = mutableMapOf<String, FloatArray>()
 
     // -------------------------------------------------------------------------
     // Lifecycle
@@ -91,6 +94,8 @@ class RecognitionRepositoryImpl @Inject constructor(
                 val engine = EmbeddingEngine(context).also { it.load() }
                 engines[albumId] = engine
                 queryBuffers[albumId] = FloatArray(EmbeddingEngine.EMBEDDING_DIM)
+                // Issue #8 — Pre-allocate orientationBuffer alongside queryBuffer
+                orientationBuffers[albumId] = FloatArray(EmbeddingEngine.EMBEDDING_DIM)
                 Timber.d("RecognitionRepository: engine ready for $albumId")
             } catch (e: Exception) {
                 Timber.w("RecognitionRepository: engine load failed — recognition disabled (${e.message})")
@@ -102,6 +107,7 @@ class RecognitionRepositoryImpl @Inject constructor(
         engines.remove(albumId)?.close()
         albumEmbeddings.remove(albumId)
         queryBuffers.remove(albumId)
+        orientationBuffers.remove(albumId)  // Issue #8
         Timber.d("RecognitionRepository: released engine for $albumId")
     }
 
@@ -120,20 +126,21 @@ class RecognitionRepositoryImpl @Inject constructor(
         emit(RecognitionResult.Scanning)
         val start = System.currentTimeMillis()
 
-        val engine          = engines[albumId]
-        val storedEmbeddings = albumEmbeddings[albumId]
-        val queryBuffer     = queryBuffers[albumId]
+        val engine             = engines[albumId]
+        val storedEmbeddings   = albumEmbeddings[albumId]
+        val queryBuffer        = queryBuffers[albumId]
+        val orientationBuffer  = orientationBuffers[albumId]  // Issue #8 — reuse pre-allocated buffer
 
-        if (engine == null || storedEmbeddings == null || queryBuffer == null) {
+        if (engine == null || storedEmbeddings == null || queryBuffer == null || orientationBuffer == null) {
             // Engine not loaded (model file missing) — degrade gracefully, don't crash scanner
             Timber.w("RecognitionRepository: engine not ready for $albumId — returning Unrecognised")
             emit(RecognitionResult.Unrecognised)
             return@flow
         }
 
-        // Zero-allocation inference — result written into pre-allocated queryBuffer
-        val orientationBuffer = FloatArray(EmbeddingEngine.EMBEDDING_DIM)
+        // Zero-allocation inference — result written into pre-allocated buffers
         val candidates = buildOrientationCandidates(image)
+        
         val frameScores = mutableMapOf<String, Float>()
 
         try {
@@ -145,7 +152,7 @@ class RecognitionRepositoryImpl @Inject constructor(
                 for (fe in storedEmbeddings) {
                     if (fe.embedding.isEmpty()) continue
                     val score = cosineSimilarity(fe.embedding, targetBuffer)
-
+                    
                     // Keep highest score per frame across all orientations
                     val current = frameScores[fe.frame.id] ?: 0f
                     if (score > current) frameScores[fe.frame.id] = score
@@ -175,7 +182,7 @@ class RecognitionRepositoryImpl @Inject constructor(
 
         val frameIdStr = bestEmbedding?.frame?.id ?: "none"
         val matchStr = if (bestEmbedding != null && bestScore >= MATCH_THRESHOLD && margin >= MIN_MARGIN) "MATCH" else "NO_MATCH"
-
+        
         Timber.d(
             "RecognitionRepository: best=%.4f second=%.4f margin=%.4f frameId=$frameIdStr thr=%.2f minMargin=%.2f top=[$topMatches] ${latencyMs}ms → $matchStr".format(
                 bestScore, secondBestScore, margin, MATCH_THRESHOLD, MIN_MARGIN
@@ -243,9 +250,11 @@ class RecognitionRepositoryImpl @Inject constructor(
     }
 
     private fun buildOrientationCandidates(image: Bitmap): List<Pair<Int, Bitmap>> {
+        // Issue #6 — Added 180° rotation candidate (was missing)
         return listOf(
             0 to image,
             90 to image.rotate(90f),
+            180 to image.rotate(180f),
             270 to image.rotate(270f),
         )
     }
